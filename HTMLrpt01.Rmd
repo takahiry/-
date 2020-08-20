@@ -1,0 +1,149 @@
+---
+title: "智能技術之股票波動率分析"
+author: "鄭淵哲，李峻瑋"
+date: "報告時間：2020/06/16"
+output: 
+  prettydoc::html_pretty:
+    toc: true #目錄
+    theme: cayman #google有很多
+    highlight: github
+---
+
+```{r, include=FALSE}
+wkDir = "/Users/zhengyuanzhe/Desktop/Studing/大三下/大數據/Final Project/Final Data/智能技術之股票分析";   setwd(wkDir);
+Xfile   = "Final.csv"
+library(data.table)
+library(pander);   library(knitr);      library(kableExtra)
+```
+
+# (1) (KDD1) 數據取得
+* (1.1.1) 數據取得
+
+```{r, echo=FALSE, warning=FALSE}
+X = read.csv(Xfile); #  dim(X0);   head(X0,2)   #--pander(paste0(">> (1) 交易數據(X): ",Xfile,", 共 ",dim(X)[1],"筆紀錄\n\n")); 
+pander(">>交易數據樣貌為: "); 
+kable(head(X,2)) %>%
+kable_styling(c("striped", "bordered")) %>% kable_styling(full_width = F) %>% column_spec(1, bold = T)
+```
+
+# (2) (KDD2) 數據探索
+
+## (2.1) (KDD2) 日期探索
+
+```{r, echo=FALSE, warning=FALSE}
+X$date = as.Date(X$Date, format="%Y-%m-%d") #格式化讀入的date數據
+pander(paste0("* (2.1.1) 交易數據的日期範圍為: ",paste(range(X$date),collapse="--"),"\n\n"));  #-- [1] "2019-04-01" "2020-04-01"
+```
+
+## (2.2) (KDD2) 收盤開盤價格探索
+
+```{r, echo=FALSE, warning=FALSE}
+#kable(table(X$Close)[table(X$Date) == "2019-04-01"]) %>%
+#  kable_styling(c("striped", "bordered")) %>% kable_styling(full_width = F) %>% column_spec(1, bold = T)
+pander("* (2.2.1) 說明：昨日收盤價不一定等於今日開盤價 \n\n")
+pander(">>
+Code &emsp; Date &emsp; Open &emsp; Close \n\n
+&emsp;&emsp; ABIO.O &emsp; 4/1 &emsp;&emsp; 7.38 &emsp;&emsp; 7.53	\n\n
+&emsp;&emsp; ABIO.O &emsp; 4/2 &emsp;&emsp; 7.42 &emsp;&emsp; 6.89	\n\n
+&emsp;&emsp; ABIO.O &emsp; 4/3 &emsp;&emsp; 6.97 &emsp;&emsp; 6.83	\n\n
+&emsp;&emsp; ABIO.O	&emsp; 4/4 &emsp;&emsp; 5.71 &emsp;&emsp; 5.62	\n\n
+&emsp;&emsp; ABIO.O	&emsp; 4/5 &emsp;&emsp; 5.56 &emsp;&emsp; 5.71  \n\n ")
+```
+
+# (2a) 股市分析
+#[股市分析儀表板](https://app.powerbi.com/reportEmbed?reportId=1f91a051-ce6f-432c-872a-2717f7114086&autoAuth=true&ctid=da99c9dd-6bc8-4f3d-9e70-5ad996d260dd&config=eyJjbHVzdGVyVXJsIjoiaHR0cHM6Ly93YWJpLXNvdXRoLWVhc3QtYXNpYS1yZWRpcmVjdC5hbmFseXNpcy53aW5kb3dzLm5ldC8ifQ%3D%3D)
+
+# (3) (KDD3) 數據轉換 (從 log(Close) - log(Open), 計算Rc)
+
+```{r, echo=FALSE, warning=FALSE}
+X$Rc = log(X$Close) - log(X$Open)
+XT = xtabs(Rc~Company+Date, data=X); #XT設為帶有company和date 的increase數據
+XT2 = xtabs(Rc~Company+Date, data=X[substr(X$Date,1,9)=="2019-04-0",])
+Volatility = apply(XT,1,sd)
+Logmean = apply(XT,1,mean)
+
+kable(head(XT2,5)) %>%
+  kable_styling(c("striped", "bordered")) %>% kable_styling(full_width = F) %>% column_spec(1, bold = T)
+pander("* (3.1.1) 說明：為何要取Log？而不是使用(Close - Open)/Open?\n\n ")
+pander("Example: \n\n")
+pander("第一年     第二年     第三年     第四年        第五年 \n\n")
+pander("50&emsp;&emsp;100&emsp;&emsp;50&emsp;&emsp;100&emsp;&emsp;50 \n\n")
+pander("0&emsp;&emsp;+100%&emsp;-50%&emsp;+100% -50%&emsp;&emsp;平均25%收益率 （使用(Close - Open)/Open）\n\n")
+pander("※表面上平均收益有25%但是股票數值第一年跟第五年是一樣的\n\n")
+
+```
+
+# (4) (KDD4) 數據模型
+
+## (4.1a) 股市分析
+#[股市分析儀表板](https://app.powerbi.com/reportEmbed?reportId=1f91a051-ce6f-432c-872a-2717f7114086&autoAuth=true&ctid=da99c9dd-6bc8-4f3d-9e70-5ad996d260dd&config=eyJjbHVzdGVyVXJsIjoiaHR0cHM6Ly93YWJpLXNvdXRoLWVhc3QtYXNpYS1yZWRpcmVjdC5hbmFseXNpcy53aW5kb3dzLm5ldC8ifQ%3D%3D)
+
+## (4.1) (KDD4) 波動率聚類 (Volatility, group)
+```{r, echo=FALSE, warning=FALSE}
+Volatility.fit = hclust(dist(Volatility[]),method="ward.D") #與complete同理
+Volatility.group = cutree(Volatility.fit, k=5);   
+table(Volatility.group)
+View(Volatility.group)
+
+pander("* (4.1.1) 說明：聚類為五類，可以看到結果基本按照行業分類，證明波動率可以用來粗略為股票按行業分類\n\n")
+pander(">> Biotechnolo: 方舟: 1 / 阿卡迪亞: 5 / ACHIEVE LIFE: 1 / ADAPTI: 1 / ADMA: 2\n\n")
+pander(">> PC hardware: APPLE: 3 / 慧與: 4 / 惠普: 4 / NCR: 5 / STRA: 4\n\n")
+pander(">> Aviation: 美國航空: 5 / 達美航空: 4 / 阿拉斯加航空: 4 / 聯合航空: 5 / 梅薩航空: 2\n\n")
+pander(">> E-commerce: 亞馬遜: 3 / 阿里巴巴: 3 / BOOKING: 3 / EBAY: 3 / 京東: 4 \n\n")
+pander(">> Food Retail: 中國城超市: 1 / CASEY: 4 / 阿格萊斯: 4 / SPROUTS FARMERS: 4 / VILLAGE SUPER: 4 \n\n")
+```
+
+## (4.2) (KDD4) Beta指數 (Volatility, Beta)
+```{r, echo=FALSE, warning=FALSE}
+Betafile   = "BETA.csv"
+Beta = read.csv(Betafile); #  dim(X0);   head(X0,2)   #--pander(paste0(">> (1) 交易數據(X): ",Xfile,", 共 ",dim(X)[1],"筆紀錄\n\n")); 
+pander("* (4.2.1) Beta數據樣貌為: "); 
+kable(head(Beta,25)) %>%
+kable_styling(c("striped", "bordered")) %>% kable_styling(full_width = F) %>% column_spec(1, bold = T)
+
+pander("* (4.2.2) 說明：Beta = 相關係數 x 個股波動率 / 大盤波動率\n\n ")
+pander("&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;Beta指數越低說明與大盤走勢越相反且波動率越大，此時波動率越大越是優質股。\n\n ")
+pander("&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;Beta指數低的股票說明是雪中送炭的股票，而不是追漲殺跌、錦上添花的股票。\n\n ")
+pander("* (4.2.3) 可以看出在這25筆2019.4.1-2020.4.1的股票中 IFRESH的Beta指數最低，最值得購買。\n\n ")
+```
+
+## (4.3) (KDD4) 決策樹分類股票
+```{r, echo=FALSE, warning=FALSE}
+library(rpart)
+
+XX = data.frame( unique( X$Code ) )
+colnames(XX) <-c("Code")
+XX$industry = rep(1:5,each=5,len=25)
+X$industry = XX$industry[ match(X$Code,XX$Code) ]
+X$volatility = Volatility[match(X$Company,names(Volatility))]
+X$increase = Logmean[match(X$Company,names(Logmean))]
+model.rpart = rpart(  industry ~ increase + volatility , data=X )
+
+
+library(rpart.plot)
+pander("* (4.3.1) 說明：利用波動率以及收益(increase)將五個行業分類來分析哪種行業是目前值得買的股票\n\n ")
+pander(">>1: biotechnology\n\n ")
+pander(">>2: PC hardware\n\n ")
+pander(">>3: aviation\n\n ")
+pander(">>4: E-commerece\n\n ")
+pander(">>5: Food Retail\n\n ")
+par(family="STKaiti");   rpart.plot(model.rpart)
+#summary(model.rpart)
+pander("\n\n* (4.3.2) 可以看出航空業(3)起伏較為劇烈且收益呈現負成長居多\n\n ")
+pander("* (4.3.3) 而E-commerece電商(4)與Food Retail食品業(5)雖然起伏沒這麼劇烈但是大多保持正成長\n\n ")
+pander("* (4.3.4) 而biotechnology生技產業(1)則大多起伏劇烈\n\n ")
+
+```
+# (5) (KDD5) 數據初結
+
+## (5.1) 波動率應用：股票分類
+* (5.1.1) 可以看到只按照波動率聚類，其聚類結果就已經基本符合已知的行業分類結果，所以證明按波動率聚類可以大致為股票按行業做分類。
+* (5.1.2) 以後在拿到股票時，可以直接使用波動率聚類為它分進行業類別，這樣就可以讓這隻股票適用針對其行業的一些交易決策。
+
+## (5.2) 波動率應用：交易決策
+* (5.2.1) 配合大盤指數算出Beta指數，走勢與大盤相反，波動率大的股票就是優質股。簡單有效的針對波動率進行了交易決策。
+
+## (5.3) 決策樹應用：行業分類
+* (5.3.1) 用波動率跟收益來將行業分類，大致可以看出哪種行業的股票是目前風險最小且持續成長的。
+
+
